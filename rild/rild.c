@@ -31,6 +31,7 @@
 #include <cutils/sockets.h>
 #include <linux/capability.h>
 #include <linux/prctl.h>
+#include <sys/wait.h>
 
 #include <private/android_filesystem_config.h>
 
@@ -96,8 +97,115 @@ void switchUser() {
     capset(&header, &cap);
 }
 
+static int tgmd_process_id;
+static pthread_t s_tid_waitForTGMD;
+static pthread_attr_t attr_waitForTGMD;
+
+static pthread_mutex_t s_tgmd_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_tgmd_cond = PTHREAD_COND_INITIALIZER;
+
+
+static void createTGMDProcess(){
+
+	LOGD("TGMD Starts");
+
+	execl("/system/bin/tgmd","tgmd",(char *)NULL);
+}
+
+static void *waitForTGMDTerminated(){
+
+	int child_state;
+
+	LOGD("waitForTGMDTerminated START");
+
+	int err=waitpid(tgmd_process_id,&child_state,0);
+
+    LOGE("TGMD Process exited with errno: %d",err);
+
+	pthread_mutex_lock(&s_tgmd_mutex);
+
+   
+
+	tgmd_process_id = -1;
+
+	pthread_cond_broadcast(&s_tgmd_cond);
+
+
+	pthread_mutex_unlock(&s_tgmd_mutex);
+
+	LOGD("waitForTGMDTerminated END");
+
+	tgmd_process_id = fork();
+
+	if(!tgmd_process_id){
+
+		createTGMDProcess();
+
+	}else{
+
+		//this is mother thread
+		//Create another thread to wait for tgmd terminated!!!;
+		pthread_attr_init (&attr_waitForTGMD);
+
+		pthread_attr_setdetachstate(&attr_waitForTGMD, PTHREAD_CREATE_DETACHED);
+
+		pthread_create(&s_tid_waitForTGMD,&attr_waitForTGMD,waitForTGMDTerminated, NULL);
+
+	}
+
+	return 0;
+
+
+}
+
+
+
 int main(int argc, char **argv)
 {
+
+    //
+
+	tgmd_process_id = fork();
+
+    if(!tgmd_process_id){
+
+    	createTGMDProcess();
+    
+    }else{
+
+    	//this is mother thread
+
+    	//Create another thread to wait for tgmd terminated!!!;
+    	pthread_attr_init (&attr_waitForTGMD);
+
+    	pthread_attr_setdetachstate(&attr_waitForTGMD, PTHREAD_CREATE_DETACHED);
+
+    	pthread_create(&s_tid_waitForTGMD,&attr_waitForTGMD,waitForTGMDTerminated,NULL);
+
+    }
+
+    //Setup Memory
+    property_set("ro.FOREGROUND_APP_ADJ","0");
+    property_set("ro.VISIBLE_APP_ADJ","1");
+    property_set("ro.SECONDARY_SERVER_ADJ","2");
+    property_set("ro.HOME_APP_ADJ","4");
+    property_set("ro.HIDDEN_APP_MIN_ADJ","7");
+    property_set("ro.CONTENT_PROVIDER_ADJ","14");
+    property_set("ro.EMPTY_APP_ADJ","15");
+
+    property_set("ro.FOREGROUND_APP_MEM","1536");
+    property_set("ro.VISIBLE_APP_MEM","8000");
+    property_set("ro.SECONDARY_SERVER_MEM","8000");
+    property_set("ro.HOME_APP_MEM","10000");
+    property_set("ro.HIDDEN_APP_MEM","10000");
+    property_set("ro.CONTENT_PROVIDER_MEM","12500");
+    property_set("ro.EMPTY_APP_MEM","16000");
+    
+    system("echo 0,1,2,7,14,15 >/sys/module/lowmemorykiller/parameters/adj");
+    system("echo 1536,8000,8000,10000,12500,16000 >/sys/module/lowmemorykiller/parameters/minfree");
+    
+
+
     const char * rilLibPath = NULL;
     char **rilArgv;
     void *dlHandle;

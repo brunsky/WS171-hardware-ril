@@ -203,6 +203,9 @@ int main(int argc, char **argv)
     
     system("echo 0,1,2,7,14,15 >/sys/module/lowmemorykiller/parameters/adj");
     system("echo 1536,8000,8000,10000,12500,16000 >/sys/module/lowmemorykiller/parameters/minfree");
+
+    // enable the cpu frequency control for android runtime
+    system("chmod 0666 /sys/devices/system/cpu/cpu0/op");
     
 
 

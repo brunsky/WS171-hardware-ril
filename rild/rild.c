@@ -206,6 +206,7 @@ int main(int argc, char **argv)
 
     // enable the cpu frequency control for android runtime
     system("chmod 0666 /sys/devices/system/cpu/cpu0/op");
+    system("chmod 0666 /sys/class/backlight/pxa3xx_pwm_bl/bl_power");
     
 
 

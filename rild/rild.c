@@ -208,7 +208,10 @@ int main(int argc, char **argv)
     system("chmod 0666 /sys/devices/system/cpu/cpu0/op");
     system("chmod 0666 /sys/class/backlight/pxa3xx_pwm_bl/bl_power");
     
-
+    // create flag for power.c
+    system("echo 1 > /tmp/wakeup");
+    system("chmod 0666 /tmp/wakeup");
+    system("chown system /tmp/wakeup");
 
     const char * rilLibPath = NULL;
     char **rilArgv;
